@@ -1,0 +1,17 @@
+{
+  "id": "o17",
+  "slug": "call-qa",
+  "name": "电话录音质检",
+  "version": "0.1.0",
+  "repo": "campfire-code/call-qa",
+  "license": "MIT",
+  "ui": {
+    "layout": "f",
+    "palette": "violet"
+  },
+  "upstream": {
+    "repo": "huggingface/transformers.js",
+    "license": "Apache-2.0"
+  },
+  "ffmpeg": true
+}

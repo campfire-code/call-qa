@@ -1,0 +1,57 @@
+/* 电话录音质检：只用 kit.css 的变量，类名统一以 cq- 开头。 */
+.cq-root { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+.cq-top { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.cq-file { display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap; }
+.cq-drop { flex: 1 1 260px; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1.5px dashed var(--line-strong); border-radius: var(--radius-lg); color: var(--muted); transition: border-color .15s var(--ease), background .15s var(--ease); }
+.cq-drop.has { border-style: solid; border-color: var(--line); color: var(--primary); }
+.cq-drop.hover { border-color: var(--primary); background: var(--primary-soft); }
+.cq-file-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; color: var(--ink); }
+.cq-opts { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: flex-end; font-size: .92em; }
+.cq-opt { display: flex; flex-direction: column; gap: 4px; }
+.cq-opt select.k-input { min-width: 230px; }
+.cq-model { padding-bottom: 6px; }
+.cq-sm { height: 28px; padding: 0 10px; display: inline-flex; align-items: center; gap: 4px; }
+.cq-msg { padding: 8px 12px; border-radius: var(--radius); font-size: .95em; }
+.cq-msg.ok { background: var(--ok-soft); color: var(--ok); }
+.cq-msg.err { background: var(--err-soft); color: var(--err); }
+.cq-tabs { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cq-sp { flex: 1; }
+.cq-empty { padding: 28px 12px; text-align: center; line-height: 1.8; }
+
+.cq-results { flex: 1; min-height: 0; overflow: auto; }
+.cq-table { width: 100%; border-collapse: collapse; }
+.cq-table th { text-align: left; font-weight: 600; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--panel, var(--bg)); }
+.cq-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.cq-table .r { text-align: right; }
+.cq-row.bad { background: var(--err-soft); }
+.cq-name { max-width: 240px; }
+.cq-score { font-weight: 700; font-size: 1.1em; }
+.cq-prob { max-width: 420px; line-height: 1.5; }
+.cq-tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .88em; font-weight: 600; }
+.cq-tag.ok { background: var(--ok-soft); color: var(--ok); }
+.cq-tag.err { background: var(--err-soft); color: var(--err); }
+.cq-err { color: var(--err); }
+.cq-prog { display: flex; flex-direction: column; gap: 4px; min-width: 200px; }
+.cq-detail td { background: var(--chip); }
+.cq-detail-in { display: flex; flex-direction: column; gap: 8px; padding: 6px 0 10px; }
+.cq-rules { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.cq-rules li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 4px 6px; border-radius: var(--radius); }
+.cq-rules li.bad { background: var(--err-soft); }
+.cq-kind { font-size: .82em; padding: 0 6px; border-radius: 4px; border: 1px solid var(--line-strong); color: var(--muted); }
+.cq-hits { display: inline-flex; flex-wrap: wrap; gap: 4px 8px; }
+.cq-hit { padding: 0 6px; border-radius: 4px; background: var(--primary-soft); }
+.cq-trans { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow: auto; }
+.cq-trans li { padding: 2px 6px; border-radius: var(--radius); line-height: 1.5; }
+.cq-trans li.bad { background: var(--err-soft); color: var(--err); }
+
+.cq-rulepage { padding: 14px; display: flex; flex-direction: column; gap: 14px; overflow: auto; min-height: 0; }
+.cq-passrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cq-root .cq-num { width: 64px; flex: none; height: 28px; padding: 0 6px; text-align: right; }
+.cq-ghead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.cq-ghead .k-muted { flex: 1 1 280px; font-size: .92em; }
+.cq-rule { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.cq-root .cq-rname { width: 170px; flex: none; height: 28px; }
+.cq-root .cq-words { flex: 1 1 260px; width: auto; min-width: 200px; height: 28px; }
+.cq-field { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.cq-none { padding: 6px 0; }
+.cq-foot { font-size: .92em; line-height: 1.6; }
