@@ -1,7 +1,7 @@
 // 主界面：导入录音 → 本机转写 → 按规则质检 → 看明细 → 导出 Excel。规则可随时修改，结果立即重算，不用重新转写。
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { save } from '@tauri-apps/plugin-dialog';
-import { ChevronDown, ChevronRight, FileAudio, FolderOpen, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { ArrowRight, Check, Download, FileAudio, FileText, FolderOpen, ListChecks, Loader2, Play, Plus, RotateCcw, Settings2, ShieldCheck, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import type { CustomTool } from '../kit/types';
 import { ProgressBar, useDroppedFiles } from '../kit/parts';
 import { pickFiles, pickFolder, reveal, settingsStore } from '../kit/platform';
@@ -34,10 +34,14 @@ interface Item {
 interface Prefs { model: string; localDir: string }
 const DEFAULT_PREFS: Prefs = { model: 'small', localDir: '' };
 
-const demoItems = (): Item[] => DEMO.map((d, i) => ({ id: `d${i}`, path: `/示例/${d.name}`, name: d.name, status: 'ok', ratio: 1, text: '', segs: d.segs, duration: d.duration }));
+const demoItems = (): Item[] => [
+  ...DEMO.map((d, i): Item => ({ id: `d${i}`, path: `/示例/${d.name}`, name: d.name, status: 'ok', ratio: 1, text: '', segs: d.segs, duration: d.duration })),
+  { id: 'd8', path: '/示例/客户回访-下午场.mp3', name: '客户回访-下午场.mp3', status: 'run', ratio: 0.42, text: '正在识别：第 2 / 5 段' },
+  { id: 'd9', path: '/示例/备用录音.wav', name: '备用录音.wav', status: 'wait', ratio: 0, text: '' },
+];
 
 export function Main({ ctx }: { ctx?: Ctx }) {
-  const [items, setItems] = useState<Item[]>(isPreview ? demoItems() : []);
+  const [items, setItems] = useState<Item[]>(isPreview && new URLSearchParams(location.search).get('state') !== 'empty' ? demoItems() : []);
   const [config, setConfig] = useState<Config>(DEFAULT_CONFIG);
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [tab, setTab] = useState<'result' | 'rules'>(isPreview && new URLSearchParams(location.search).get('tab') === 'rules' ? 'rules' : 'result');
@@ -112,100 +116,141 @@ export function Main({ ctx }: { ctx?: Ctx }) {
   }
 
   const waiting = items.filter((i) => i.status === 'wait' || i.status === 'err').length;
+  const [sel, setSel] = useState<string | null>(isPreview ? 'd1' : null);
+  const current = items.find((i) => i.id === sel) ?? done.find((i) => !reports.get(i.id)!.passed) ?? done[0];
   return (
-    <div className="cq-root">
-      <section className="k-panel cq-top">
-        <div className="cq-file">
-          <span className={`cq-drop${hover ? ' hover' : ''}${items.length ? ' has' : ''}`}>
-            <FileAudio size={22} aria-hidden />
-            <span className="cq-file-text">
-              <b>{items.length ? `已添加 ${items.length} 通录音` : '把通话录音拖到这里'}</b>
-              <span className="k-muted">{items.length ? '可继续拖入更多' : 'mp3、m4a、wav、amr、aac、flac 等，文件不会上传'}</span>
-            </span>
-          </span>
-          <button className="k-btn" disabled={running} onClick={async () => add(await pickFiles(AUDIO_EXTENSIONS, '录音'))}>添加录音…</button>
-          <button className="k-btn" disabled={running || !items.length} onClick={() => { setItems([]); setMsg(null); }}>清空</button>
-          {running ? <button className="k-btn" onClick={() => abort.current?.abort()}>暂停</button> : <button className="k-btn primary" disabled={!ctx || !waiting} onClick={start}>{items.some((i) => i.status === 'err') && !items.some((i) => i.status === 'wait') ? '重试失败的' : '开始转写并质检'}</button>}
+    <div className="cq2" data-state={items.length ? 'has' : 'empty'}>
+      <div className="cq2-bar">
+        <div className="cq2-seg" role="tablist" aria-label="功能">
+          <button role="tab" aria-selected={tab === 'result'} className={tab === 'result' ? 'on' : ''} onClick={() => setTab('result')}><ListChecks size={15} />质检结果</button>
+          <button role="tab" aria-selected={tab === 'rules'} className={tab === 'rules' ? 'on' : ''} onClick={() => setTab('rules')}><SlidersHorizontal size={15} />质检规则 {config.rules.length}</button>
         </div>
-        <div className="cq-opts">
-          <label className="cq-opt"><span className="k-label">识别模型（中文）</span>
-            <select className="k-input" value={prefs.model} disabled={running} onChange={(e) => setPref('model', e.target.value)}>{MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</select>
-          </label>
-          <span className="k-muted cq-model">{prefs.localDir ? <>本地模型文件夹：<span title={prefs.localDir}>{baseName(prefs.localDir)}</span></> : '模型首次使用自动下载，之后离线可用。'}</span>
-          <button className="k-btn cq-sm" disabled={running} onClick={async () => { const d = await pickFolder(); if (d) setPref('localDir', d); }}><FolderOpen size={14} aria-hidden />指定本地模型文件夹…</button>
-          {prefs.localDir && <button className="k-btn cq-sm" disabled={running} onClick={() => setPref('localDir', '')}>改回自动下载</button>}
-        </div>
-        {msg && <div className={`cq-msg ${msg.kind}`} role={msg.kind === 'err' ? 'alert' : 'status'}>{msg.text}</div>}
-      </section>
-
-      <div className="cq-tabs" role="tablist" aria-label="功能">
-        <button role="tab" aria-selected={tab === 'result'} className={`k-chip${tab === 'result' ? ' on' : ''}`} onClick={() => setTab('result')}>质检结果</button>
-        <button role="tab" aria-selected={tab === 'rules'} className={`k-chip${tab === 'rules' ? ' on' : ''}`} onClick={() => setTab('rules')}>质检规则（{config.rules.length}）</button>
         <span className="cq-sp" />
-        {tab === 'result' && done.length > 0 && <>
-          <span className="k-muted k-num">已质检 {stat.total} 通 · 合格 {stat.pass} · 不合格 {stat.total - stat.pass} · 平均 {stat.avg} 分</span>
-          <button className="k-btn primary" onClick={exportXlsx}>导出 Excel 汇总</button>
-        </>}
+        <button className="k-btn" disabled={running} onClick={async () => add(await pickFiles(AUDIO_EXTENSIONS, '录音'))}><Plus size={15} />添加录音</button>
+        <button className="k-btn" disabled={running || !items.length} onClick={() => { setItems([]); setMsg(null); setSel(null); }}>清空</button>
+        <details className="cq2-set">
+          <summary className="k-btn"><Settings2 size={15} />识别设置</summary>
+          <div className="cq2-pop">
+            <label className="cq-opt"><span className="k-label">识别模型（中文）</span>
+              <select className="k-input" value={prefs.model} disabled={running} onChange={(e) => setPref('model', e.target.value)}>{MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</select>
+            </label>
+            <span className="k-muted">{prefs.localDir ? <>本地模型文件夹：<span title={prefs.localDir}>{baseName(prefs.localDir)}</span></> : '模型首次使用自动下载，之后离线可用。'}</span>
+            <div className="cq2-pop-row">
+              <button className="k-btn" disabled={running} onClick={async () => { const d = await pickFolder(); if (d) setPref('localDir', d); }}><FolderOpen size={14} aria-hidden />指定本地模型文件夹</button>
+              {prefs.localDir && <button className="k-btn" disabled={running} onClick={() => setPref('localDir', '')}>改回自动下载</button>}
+            </div>
+          </div>
+        </details>
+        {tab === 'result' && done.length > 0 && <button className="k-btn" onClick={exportXlsx}><Download size={15} />导出 Excel</button>}
+        {running ? <button className="k-btn primary" onClick={() => abort.current?.abort()}>暂停</button> : <button className="k-btn primary" disabled={!ctx || !waiting} onClick={start}><Play size={15} />{items.some((i) => i.status === 'err') && !items.some((i) => i.status === 'wait') ? '重试失败的' : '开始转写并质检'}</button>}
       </div>
+      {msg && <div className={`cq-msg ${msg.kind}`} role={msg.kind === 'err' ? 'alert' : 'status'}>{msg.text}</div>}
 
-      {tab === 'result' ? <Results items={items} reports={reports} config={config} remove={(id) => setItems((c) => c.filter((i) => i.id !== id))} running={running} /> : <Rules config={config} update={updateConfig} />}
+      {tab === 'rules' ? <Rules config={config} update={updateConfig} /> : !items.length ? <Intro hover={hover} onPick={async () => add(await pickFiles(AUDIO_EXTENSIONS, '录音'))} /> : (
+        <div className="cq2-work">
+          <aside className="cq2-side">
+            <div className="cq2-stats">
+              <div><b className="k-num">{stat.total}</b><span>已质检</span></div>
+              <div className="ok"><b className="k-num">{stat.pass}</b><span>合格</span></div>
+              <div className="bad"><b className="k-num">{stat.total - stat.pass}</b><span>不合格</span></div>
+              <div><b className="k-num">{stat.avg}</b><span>平均分</span></div>
+            </div>
+            <ul className="cq2-list">
+              {items.map((it) => {
+                const r = reports.get(it.id);
+                const on = current?.id === it.id;
+                return (
+                  <li key={it.id}>
+                    <button className={`cq2-call${on ? ' on' : ''}${r && !r.passed ? ' bad' : ''}`} aria-current={on} disabled={!r && it.status !== 'err'} onClick={() => setSel(it.id)}>
+                      {r ? <span className={`cq2-score ${r.passed ? 'ok' : 'bad'}`}><b className="k-num">{r.score}</b></span> : <span className="cq2-score wait">{it.status === 'run' ? <Loader2 size={16} className="k-spin" /> : it.status === 'err' ? <X size={16} /> : <FileAudio size={16} />}</span>}
+                      <span className="cq2-call-main">
+                        <b className="k-ellipsis" title={it.path}>{it.name}</b>
+                        {r ? <small className="k-muted k-ellipsis">{mmss(it.duration ?? 0)} · {problems(r)}</small>
+                          : it.status === 'run' ? <><ProgressBar ratio={it.ratio} label={it.text} /><small className="k-muted">{it.text}</small></>
+                          : it.status === 'err' ? <small className="cq-err">{it.error}</small> : <small className="k-muted">等待转写</small>}
+                      </span>
+                      <span role="button" tabIndex={0} className="k-icon-btn" aria-label={`移除 ${it.name}`} aria-disabled={running && it.status === 'run'} onClick={(e) => { e.stopPropagation(); if (!(running && it.status === 'run')) setItems((c) => c.filter((i) => i.id !== it.id)); }} onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); if (!(running && it.status === 'run')) setItems((c) => c.filter((i) => i.id !== it.id)); } }}><Trash2 size={14} /></span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </aside>
+          <section className="cq2-sheet">
+            {current && reports.get(current.id) ? <Detail key={current.id} item={current} report={reports.get(current.id)!} passScore={config.passScore} /> : <div className="cq2-wait k-muted">转写完成后，在这里看每通录音的质检单。</div>}
+          </section>
+        </div>
+      )}
     </div>
   );
 }
 
-function Results({ items, reports, config, remove, running }: { items: Item[]; reports: Map<string, Report>; config: Config; remove: (id: string) => void; running: boolean }) {
-  const [open, setOpen] = useState<string | null>(isPreview ? 'd1' : null);
-  if (!items.length) return <div className="cq-empty k-muted">添加录音后点「开始转写并质检」。转写和质检都在本机完成，不联网（仅首次需要下载识别模型），不需要显卡。<br />不区分坐席和客户：整通录音按一份文字稿检查。</div>;
+/** 没有录音时：讲清楚「录音 → 文字 → 对照规则 → 得分」 */
+function Intro({ hover, onPick }: { hover: boolean; onPick: () => void }) {
   return (
-    <section className="k-panel cq-results">
-      <table className="cq-table">
-        <thead><tr><th aria-label="展开" /><th>录音</th><th className="r">时长</th><th className="r">得分</th><th>结论</th><th>问题</th><th aria-label="操作" /></tr></thead>
-        <tbody>
-          {items.map((it) => {
-            const r = reports.get(it.id);
-            const isOpen = open === it.id && !!r;
-            return (
-              <Fragment key={it.id}>
-                <tr className={`cq-row${r && !r.passed ? ' bad' : ''}`}>
-                  <td>{r && <button className="k-icon-btn" aria-label={isOpen ? '收起明细' : '展开明细'} aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : it.id)}>{isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</button>}</td>
-                  <td className="cq-name"><span className="k-ellipsis" title={it.path}>{it.name}</span></td>
-                  <td className="r k-num">{it.duration ? mmss(it.duration) : '—'}</td>
-                  {r ? <>
-                    <td className="r k-num cq-score">{r.score}</td>
-                    <td><span className={`cq-tag ${r.passed ? 'ok' : 'err'}`}>{r.passed ? '合格' : '不合格'}</span></td>
-                    <td className="cq-prob">{problems(r)}</td>
-                  </> : <td colSpan={3}>
-                    {it.status === 'run' ? <div className="cq-prog"><ProgressBar ratio={it.ratio} label={it.text} /><span className="k-muted">{it.text}</span></div>
-                      : it.status === 'err' ? <span className="cq-err">{it.error}</span> : <span className="k-muted">等待转写</span>}
-                  </td>}
-                  <td><button className="k-icon-btn" aria-label={`移除 ${it.name}`} disabled={running && it.status === 'run'} onClick={() => remove(it.id)}><Trash2 size={14} /></button></td>
-                </tr>
-                {isOpen && r && <tr className="cq-detail"><td /><td colSpan={6}><Detail item={it} report={r} passScore={config.passScore} /></td></tr>}
-              </Fragment>
-            );
-          })}
-        </tbody>
-      </table>
-    </section>
+    <div className={`cq2-intro${hover ? ' hover' : ''}`}>
+      <ol className="cq2-flow" aria-label="质检流程">
+        <li><span><FileAudio size={22} /></span><b>通话录音</b><small>mp3、m4a、wav 等</small></li>
+        <ArrowRight size={20} className="cq2-arr" />
+        <li><span><FileText size={22} /></span><b>本机转成文字</b><small>不联网、不用显卡</small></li>
+        <ArrowRight size={20} className="cq2-arr" />
+        <li><span><ShieldCheck size={22} /></span><b>对照你的规则</b><small>必说话术、违禁词、关键词</small></li>
+        <ArrowRight size={20} className="cq2-arr" />
+        <li className="end"><span className="score"><b className="k-num">86</b></span><b>得分与明细</b><small>合格或不合格，可导出 Excel</small></li>
+      </ol>
+      <h2>{hover ? '松开鼠标，开始添加' : '把通话录音拖进来'}</h2>
+      <p className="k-muted">不区分坐席和客户，整通录音按一份文字稿检查。规则可以随时改，结果立即重算，不用重新转写。</p>
+      <button className="k-btn primary" onClick={onPick}><Plus size={15} />添加录音</button>
+    </div>
   );
 }
 
 function Detail({ item, report, passScore }: { item: Item; report: Report; passScore: number }) {
   const hitTimes = new Set(report.results.flatMap((r) => r.hits.filter(() => r.rule.kind === 'banned').map((h) => h.at)));
+  const total = Math.max(item.duration ?? 0, ...item.segs!.map((s) => s.end), 1);
+  const pos = (t: number) => `${Math.min(100, (t / total) * 100)}%`;
+  const failed = report.results.filter((r) => r.failed);
+  const bannedHits = report.results.filter((r) => r.rule.kind === 'banned').reduce((n, r) => n + r.count, 0);
+  const missed = report.results.filter((r) => r.rule.kind === 'required' && r.failed).length;
   return (
-    <div className="cq-detail-in">
-      <div className="cq-sub k-muted">满分 100，{passScore} 分及以上合格；下面是每条规则的检查情况。</div>
-      <ul className="cq-rules">
+    <div className="cq2-detail">
+      <header className={`cq2-head ${report.passed ? 'ok' : 'bad'}`}>
+        <div className="cq2-big"><b className="k-num">{report.score}</b><span>分</span></div>
+        <div className="cq2-verdict">
+          <span className={`cq-tag ${report.passed ? 'ok' : 'err'}`}>{report.passed ? '合格' : '不合格'}</span>
+          <h2 className="k-ellipsis" title={item.name}>{item.name}</h2>
+          <p className="k-muted">时长 {mmss(item.duration ?? total)} · 满分 100，{passScore} 分及以上合格 · {failed.length ? `${failed.length} 条规则不达标` : '全部规则达标'}</p>
+        </div>
+        <dl className="cq2-mini">
+          <div><dt>命中违禁词</dt><dd className={`k-num${bannedHits ? ' bad' : ''}`}>{bannedHits}</dd></div>
+          <div><dt>漏说话术</dt><dd className={`k-num${missed ? ' bad' : ''}`}>{missed}</dd></div>
+        </dl>
+      </header>
+
+      <div className="cq2-line" role="img" aria-label="通话时间线：说话的位置和规则命中的位置">
+        <div className="cq2-track">
+          {item.segs!.map((s, i) => <i key={i} className={`talk${hitTimes.has(s.start) ? ' bad' : ''}`} style={{ left: pos(s.start), width: `max(2px, ${((s.end - s.start) / total) * 100}%)` }} />)}
+          {report.results.flatMap((r) => r.hits.map((h, i) => <b key={`${r.rule.id}${i}`} className={`pin ${r.rule.kind}`} style={{ left: pos(h.at) }} title={`${mmss(h.at)} ${r.rule.name}：${h.word}`} />))}
+        </div>
+        <div className="cq2-ticks k-num"><span>00:00</span><span>{mmss(total / 2)}</span><span>{mmss(total)}</span></div>
+        <div className="cq2-legend"><span><i className="talk" />说话</span><span><i className="pin banned" />违禁词</span><span><i className="pin required" />必说话术</span><span><i className="pin keyword" />关键词</span></div>
+      </div>
+
+      <ul className="cq2-checks">
         {report.results.map((r) => (
           <li key={r.rule.id} className={r.failed ? 'bad' : ''}>
-            <span className={`cq-kind ${r.rule.kind}`}>{KIND_NAME[r.rule.kind]}</span>
-            <b>{r.rule.name}</b>
-            <span className={r.failed ? 'cq-err' : 'k-muted'}>{r.note}{r.deduct ? `，扣 ${r.deduct} 分` : ''}</span>
-            {r.hits.length > 0 && <span className="cq-hits">{r.hits.slice(0, 6).map((h, i) => <span key={i} className="cq-hit" title={h.context}><span className="k-num">{mmss(h.at)}</span> {h.word}</span>)}{r.hits.length > 6 && <span className="k-muted"> 等 {r.hits.length} 处</span>}</span>}
+            <span className="cq2-ico" aria-label={r.failed ? '不达标' : '达标'}>{r.failed ? <X size={14} /> : <Check size={14} />}</span>
+            <span className="cq2-chk-main">
+              <span className="cq2-chk-head"><span className={`cq-kind ${r.rule.kind}`}>{KIND_NAME[r.rule.kind]}</span><b>{r.rule.name}</b></span>
+              <span className={r.failed ? 'cq-err' : 'k-muted'}>{r.note}{r.deduct ? `，扣 ${r.deduct} 分` : ''}</span>
+              {r.hits.length > 0 && <span className="cq-hits">{r.hits.slice(0, 6).map((h, i) => <span key={i} className="cq-hit" title={h.context}><span className="k-num">{mmss(h.at)}</span> {h.word}</span>)}{r.hits.length > 6 && <span className="k-muted"> 等 {r.hits.length} 处</span>}</span>}
+            </span>
+            {r.deduct > 0 && <b className="cq2-deduct k-num">−{r.deduct}</b>}
           </li>
         ))}
       </ul>
-      <div className="cq-sub"><b>转写文字</b> <span className="k-muted">（红底为命中违禁词的那句话；识别可能有错字，请抽查）</span></div>
+
+      <h3 className="cq2-h3">转写文字 <span className="k-muted">红底是命中违禁词的那句话；识别可能有错字，请抽查原声</span></h3>
       <ol className="cq-trans">
         {item.segs!.map((s, i) => <li key={i} className={hitTimes.has(s.start) ? 'bad' : ''}><span className="k-num k-muted">{mmss(s.start)}</span> {s.text}</li>)}
       </ol>

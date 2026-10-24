@@ -30,7 +30,7 @@ const COMMON = (sha: { config: string; gen: string }, sizes: { config: number; g
 
 export const MODELS: ModelSpec[] = [
   {
-    id: 'base', label: '快速（base，约 76 MB，错字和漏句较多）', repo: 'Xenova/whisper-base', commit: '64da57285918e20ea79ea5c88eed7197933abaa8',
+    id: 'base', label: '快速（约 76 MB，错字和漏句较多）', repo: 'Xenova/whisper-base', commit: '64da57285918e20ea79ea5c88eed7197933abaa8',
     files: [
       ...COMMON({ config: 'd1d347fdb422e6347c2f843a90d375aa67ea3f4b3e20d2c3075f9a9f6243685b', gen: '3bba359e33fdd6dc1c10f71846a477d339b0242f462f70ea1dd73274caa38d05' }, { config: 2248, gen: 3776 }),
       { name: 'onnx/encoder_model_quantized.onnx', size: 23200850, sha256: '3e345e977b55620a37c0c2b2af0644e019afdfad562dcf71eb929bb7274285f9' },
@@ -38,7 +38,7 @@ export const MODELS: ModelSpec[] = [
     ],
   },
   {
-    id: 'small', label: '推荐（small，约 240 MB，更准，速度约慢 4 倍）', repo: 'Xenova/whisper-small', commit: '2d67713f236afa48a18992566e7647f6ca848e13',
+    id: 'small', label: '推荐（约 240 MB，更准，速度约慢 4 倍）', repo: 'Xenova/whisper-small', commit: '2d67713f236afa48a18992566e7647f6ca848e13',
     files: [
       ...COMMON({ config: '5a6429d21d7a3379dd0861b74510f9f7076f32b563bffc9fcb072482d55ab3be', gen: '0b7407a4e53a677f826e03c75d409e6f830663932bf43dda3b08c5efa2223279' }, { config: 2232, gen: 3837 }),
       { name: 'onnx/encoder_model_quantized.onnx', size: 92324809, sha256: '969f5ac12974340386bf7a02ea6626003e5e2dee396ffc6ab0eec282bf55ba06' },
